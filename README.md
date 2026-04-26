@@ -93,7 +93,7 @@ rosa-miniporto/
 ├── pages/
 │   ├── api/
 │   │   └── generate/
-│   │           floor-plan/       # Target for further development
+│   │                └──floor-plan/       # Target for further development
 │   │               └──route.ts           # Gemini API integration
 │   ├── index.tsx                         
 │   └── _app.tsx
