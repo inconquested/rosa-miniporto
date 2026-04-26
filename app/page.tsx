@@ -1,12 +1,12 @@
 'use client';
 import { useState } from 'react';
 import { FloorPlanViewer } from '@/components/floor-plan-viewer';
-import { Input } from '@/components/ui/input';
 import { Button } from "@/components/ui/button"
 import { calculateBudget } from '@/lib/budget-calculator';
 import { FloorPlanData, BudgetData } from '@/types';
 import { InputGroup, InputGroupAddon, InputGroupTextarea, InputGroupButton } from '@/components/ui/input-group';
 import { MicrophoneIcon, ArrowUpIcon, SquareIcon } from '@phosphor-icons/react';
+
 export default function Home() {
   const [floorPlan, setFloorPlan] = useState<FloorPlanData | null>(null);
   const [input, setInput] = useState('');
@@ -102,7 +102,7 @@ export default function Home() {
 
   return (
     <div className="relative w-full h-screen overflow-hidden bg-[#f8fafc]">
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-10 w-full h-full bg-white">
         <FloorPlanViewer rooms={floorPlan?.rooms || []} onFloorplanClear={handleClearFloorplan} budget={budget ?? undefined} />
       </div>
 
@@ -122,7 +122,7 @@ export default function Home() {
                     }
                   }}
                   placeholder="Describe your dream layout..."
-                  className="focus:ring-0 min-h-[56px] py-4 pl-5 resize-none"
+                  className="focus:ring-0 min-h-[56px] py-4 pl-5 resize-none text-rose-950 placeholder:text-rose-950/75"
                 />
                 <InputGroupAddon align="inline-end" className="mb-1 mr-1 self-end">
                   <div className="flex gap-1 items-center transition-all duration-300">
@@ -130,8 +130,8 @@ export default function Home() {
                       <InputGroupButton
                         variant="ghost"
                         size="icon-sm"
-                        className="rounded-full text-[#26292eff] hover:text-[#26292eff] hover:bg-[#26292eff]/10 transition-colors duration-200"
-                        title="Use voice input (coming soon)"
+                        onClick={handleSpeechInput}
+                        className="rounded-full text-primary hover:bg-primary/10! hover:text-primary transition-all duration-200"
                       >
                         <MicrophoneIcon className="size-5" />
                       </InputGroupButton>
@@ -157,7 +157,7 @@ export default function Home() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-8 text-xs text-primary hover:text-primary/80 hover:bg-primary/10 px-4"
+                    className="h-8 text-xs text-primary hover:text-rose-950 hover:bg-primary/10! px-4"
                     onClick={handleLoadSample}
                   >
                     Try a sample
@@ -177,7 +177,7 @@ export default function Home() {
       {/* 4. Notes/Description Overlay (Bottom Right) */}
       {!!floorPlan?.notes && (
         <div className="absolute bottom-8 right-8 z-10 max-w-xs text-right hidden lg:block">
-          <p className="text-xs text-neutral-700 italic leading-relaxed bg-white/40 backdrop-blur-sm p-3 rounded-lg border border-white/20">
+          <p className="text-xs text-neutral-950 italic leading-relaxed bg-neutral-600/5 backdrop-blur-sm p-3 rounded-lg border border-white/40">
             "{floorPlan.notes}"
           </p>
         </div>

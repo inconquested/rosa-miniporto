@@ -1,5 +1,5 @@
 export interface Room {
-    type: 'bedroom' | 'kitchen' | 'bathroom' | 'living_room' | 'office' | 'hallway' | 'garage' | 'carport' | 'laundry' | 'open area';
+    type: string;
     area: number;
     width: number;
     height: number;

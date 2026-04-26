@@ -13,7 +13,6 @@ import { EmptyState } from './viewer/empty-state';
 import { ANIMATION_DURATION } from './viewer/geometries/constants';
 
 export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Room[], onFloorplanClear: () => void, budget?: BudgetData }) {
-    console.log(budget);
     const [leftDown, setLeftDown] = useState(false);
     const [rightDown, setRightDown] = useState(false);
     const controlsRef = useRef<any>(null);
@@ -108,12 +107,12 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
             >
                 <color attach="background" args={['#f8fafc']} />
 
-                <ambientLight intensity={0.7} />
+                <ambientLight intensity={0.32} />
                 <directionalLight
                     position={[midX + 20, 30, midY + 20]}
-                    intensity={1.2}
+                    intensity={1}
                     castShadow
-                    shadow-mapSize={[1920, 1920]}
+                    shadow-mapSize={[1000, 1000]}
                 />
                 <hemisphereLight intensity={0.4} groundColor="#f8fafc" color="#ffffff" />
 
@@ -122,7 +121,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
                     <group position={[midX, -0.15, midY]}>
                         <Grid
                             infiniteGrid
-                            fadeDistance={cameraDistance * 3}
+                            fadeDistance={cameraDistance * 8}
                             fadeStrength={4}
                             cellSize={1}
                             sectionSize={5}
@@ -162,8 +161,8 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
 
                     <ContactShadows
                         position={[midX, -0.12, midY]}
-                        opacity={0.4}
-                        scale={cameraDistance * 2}
+                        opacity={0.1}
+                        scale={cameraDistance * 1}
                         blur={2.5}
                         far={10}
                     />
@@ -178,7 +177,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
                     minDistance={0}
                     maxDistance={cameraDistance * 3}
                     dampingFactor={0.05}
-                    enabled={!isAnimating} // Disable controls during animation
+                // Disable controls during animation
                 />
             </Canvas>
 
@@ -186,6 +185,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
             <div className="absolute top-4 right-4 flex gap-2">
                 <Button
                     variant={'outline'}
+                    className='bg-white! text-primary shadow-xs shadow-primary/10 hover:shadow-sm hover:shadow-primary/16 hover:text-rose-950 transition-all duration-200 ease-in-out'
                     onClick={handleReset}
                     disabled={isAnimating}
                 >
@@ -195,6 +195,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
 
                 <Button
                     variant={'outline'}
+                    className='bg-white! text-primary shadow-xs shadow-primary/10 hover:shadow-sm hover:shadow-primary/16 hover:text-rose-950 transition-all duration-200 ease-in-out'
                     onClick={onFloorplanClear}
                 >
                     <HouseIcon />
@@ -203,20 +204,29 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
             </div>
 
             {/* Measurement legend */}
-            <div className="absolute bottom-4 left-4 bg-white/40 text-neutral-950 p-4 rounded-lg text-xs font-mono border border-white/20 backdrop-blur-md">
+            <div className="absolute top-4 left-4 bg-neutral-600/5 text-neutral-950 p-4 rounded-xl text-xs font-mono border border-white/20 backdrop-blur-sm shadow-xs">
                 <div className="font-bold text-rose-700 mb-2 tracking-wider">FLOORPLAN ANALYTICS</div>
                 <div className="space-y-1">
                     <div className="flex justify-between gap-4">
                         <span>Total Area:</span>
-                        <span className="text-neutral-600">{(rooms.reduce((s, r) => s + r.area, 0)).toFixed(0)} sqft</span>
+                        <span>
+                            <span className="text-zinc-950 font-semibold italic">{(rooms.reduce((s, r) => s + r.area, 0)).toFixed(0)}</span>
+                            <span className="text-zinc-950 font-semibold"> sqft</span>
+                        </span>
                     </div>
                     <div className="flex justify-between gap-4">
                         <span>Rooms:</span>
-                        <span className="text-neutral-600">{rooms.length} Units</span>
+                        <span>
+                            <span className="text-zinc-950 font-semibold italic">{rooms.length}</span>
+                            <span className="text-zinc-950 font-semibold"> Units</span>
+                        </span>
                     </div>
                     <div className="flex justify-between gap-4">
                         <span>Apprx Budget:</span>
-                        <span className="text-neutral-600">{(budget?.total ?? 0).toFixed(0)} $</span>
+                        <span>
+                            <span className="text-zinc-950 font-semibold italic">{(budget?.total ?? 0).toFixed(0)}</span>
+                            <span className="text-zinc-950 font-semibold"> $</span>
+                        </span>
                     </div>
                 </div>
                 <div className="text-zinc-500 text-[10px] mt-3 pt-3 border-t border-zinc-800">
