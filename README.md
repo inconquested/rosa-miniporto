@@ -1,5 +1,6 @@
 # Rosa Miniporto
 
+## Warning: Project structure is not validated yet after changes, please wait for another changes 
 Text-to-3D floor plan generator with interactive visualization and budget estimation. Convert natural language descriptions into measured, interactive 3D floor plans.
 
 ## Overview
