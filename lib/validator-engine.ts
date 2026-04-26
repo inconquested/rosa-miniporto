@@ -1,0 +1,461 @@
+// utils/layoutRulesEngine.ts
+
+import { Room, RoomPlacementRule, LayoutValidationResult, LayoutConstraint } from '@/types/layout-rules';
+
+/**
+ * Architectural Layout Rules Engine
+ * Validates floor plans against professional design standards
+ */
+
+// Define architectural rules per room type
+const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
+    bedroom: {
+        roomType: 'bedroom',
+        minDistanceFromEntrance: 1.0,
+        mustConnectTo: ['hallway'],
+        shouldNotBeTouchedBy: ['kitchen', 'bathroom'],
+        minDistanceBetween: 1.5, // Bedrooms should be separated
+        requiresHallwayConnection: true,
+        minAreaSqft: 80,
+        maxAreaSqft: 250,
+    },
+    bathroom: {
+        roomType: 'bathroom',
+        minDistanceFromEntrance: 3.0, // Far from entrance (privacy)
+        mustConnectTo: ['hallway', 'bedroom'],
+        shouldNotBeTouchedBy: ['kitchen', 'living_room'],
+        requiresHallwayConnection: true,
+        minAreaSqft: 35,
+        maxAreaSqft: 100,
+    },
+    kitchen: {
+        roomType: 'kitchen',
+        minDistanceFromEntrance: 2.0, // Close to entrance (utility access)
+        maxDistanceFromEntrance: 20.0,
+        mustConnectTo: ['hallway', 'living_room'],
+        shouldNotBeTouchedBy: ['bedroom', 'bathroom'],
+        requiresHallwayConnection: true,
+        minAreaSqft: 80,
+        maxAreaSqft: 300,
+    },
+    living_room: {
+        roomType: 'living_room',
+        minDistanceFromEntrance: 0.5, // Near entrance (main space)
+        maxDistanceFromEntrance: 5.0,
+        mustConnectTo: ['hallway', 'kitchen'],
+        shouldNotBeTouchedBy: [],
+        requiresHallwayConnection: false, // Can be directly accessible
+        minAreaSqft: 150,
+        maxAreaSqft: 600,
+    },
+    office: {
+        roomType: 'office',
+        minDistanceFromEntrance: 2.0, // Private space
+        mustConnectTo: ['hallway'],
+        shouldNotBeTouchedBy: ['kitchen', 'living_room'],
+        requiresHallwayConnection: true,
+        minAreaSqft: 80,
+        maxAreaSqft: 200,
+    },
+    hallway: {
+        roomType: 'hallway',
+        minDistanceFromEntrance: 0.0, // Can be at entrance
+        mustConnectTo: [],
+        shouldNotBeTouchedBy: [],
+        requiresHallwayConnection: false, // IS the hallway
+        minAreaSqft: 20,
+        maxAreaSqft: 150,
+    },
+    garage: {
+        roomType: 'garage',
+        minDistanceFromEntrance: 0.5, // Near entrance for vehicle access
+        maxDistanceFromEntrance: 2.0,
+        mustConnectTo: ['hallway'],
+        shouldNotBeTouchedBy: ['bedroom', 'bathroom', 'kitchen'],
+        requiresHallwayConnection: true,
+        minAreaSqft: 150,
+        maxAreaSqft: 500,
+    },
+    laundry: {
+        roomType: 'laundry',
+        minDistanceFromEntrance: 2.0,
+        mustConnectTo: ['hallway', 'kitchen'],
+        shouldNotBeTouchedBy: ['bedroom'],
+        requiresHallwayConnection: true,
+        minAreaSqft: 30,
+        maxAreaSqft: 80,
+    },
+};
+
+// Entrance/Foyer coordinates (assumed at origin or first accessible point)
+const ENTRANCE_POSITION = { x: 0, y: 0 };
+
+/**
+ * Calculate distance between two rooms (center-to-center)
+ */
+function getRoomCenter(room: Room): { x: number; y: number } {
+    return {
+        x: room.x + room.width / 2,
+        y: room.y + room.height / 2,
+    };
+}
+
+function getDistanceBetweenRooms(room1: Room, room2: Room): number {
+    const c1 = getRoomCenter(room1);
+    const c2 = getRoomCenter(room2);
+    return Math.sqrt(Math.pow(c1.x - c2.x, 2) + Math.pow(c1.y - c2.y, 2)); // Pythagoras
+}
+
+function getDistanceFromEntrance(room: Room): number {
+    const center = getRoomCenter(room);
+    return Math.sqrt(
+        Math.pow(center.x - ENTRANCE_POSITION.x, 2) +
+        Math.pow(center.y - ENTRANCE_POSITION.y, 2)
+    ); // Pythagoras
+}
+
+/**
+ * Check if two rooms are adjacent (share wall or very close)
+ */
+function areRoomsAdjacent(room1: Room, room2: Room, tolerance: number = 0.3): boolean {
+    // Check horizontal adjacency
+    const horizontallyAdjacentX =
+        (Math.abs(room1.x + room1.width - room2.x) < tolerance) ||
+        (Math.abs(room2.x + room2.width - room1.x) < tolerance); // Simplfied AABB
+
+    const horizontallyOverlapY =
+        room1.y < room2.y + room2.height &&
+        room1.y + room1.height > room2.y;
+
+    // Check vertical adjacency
+    const verticallyAdjacentY =
+        (Math.abs(room1.y + room1.height - room2.y) < tolerance) ||
+        (Math.abs(room2.y + room2.height - room1.y) < tolerance);
+
+    const verticallyOverlapX =
+        room1.x < room2.x + room2.width &&
+        room1.x + room1.width > room2.x;
+
+    return (
+        (horizontallyAdjacentX && horizontallyOverlapY) ||
+        (verticallyAdjacentY && verticallyOverlapX)
+    );
+}
+
+/**
+ * Check if two rooms overlap (invalid)
+ */
+function doRoomsOverlap(room1: Room, room2: Room, buffer: number = 0.1): boolean {
+    return !(
+        room1.x + room1.width + buffer < room2.x ||
+        room2.x + room2.width + buffer < room1.x ||
+        room1.y + room1.height + buffer < room2.y ||
+        room2.y + room2.height + buffer < room1.y
+    );
+}
+
+/**
+ * Validate individual room constraints
+ */
+function validateRoomConstraints(room: Room, rooms: Room[]): LayoutConstraint[] {
+    const violations: LayoutConstraint[] = [];
+    const rules = ROOM_PLACEMENT_RULES[room.type];
+
+    if (!rules) {
+        return violations; // No rules defined for this type
+    }
+
+    // Check area constraints
+    if (room.area < rules.minAreaSqft) {
+        violations.push({
+            rule: `${room.type}_area_min`,
+            severity: 'warning',
+            description: `${room.type} is too small (${Math.round(room.area)} sqft). Minimum recommended: ${rules.minAreaSqft} sqft.`,
+        });
+    }
+
+    if (room.area > rules.maxAreaSqft) {
+        violations.push({
+            rule: `${room.type}_area_max`,
+            severity: 'warning',
+            description: `${room.type} is too large (${Math.round(room.area)} sqft). Maximum recommended: ${rules.maxAreaSqft} sqft.`,
+        });
+    }
+
+    // Check entrance distance
+    const entranceDistance = getDistanceFromEntrance(room);
+
+    if (rules.minDistanceFromEntrance && entranceDistance < rules.minDistanceFromEntrance) {
+        violations.push({
+            rule: `${room.type}_entrance_min_distance`,
+            severity: 'warning',
+            description: `${room.type} is too close to entrance (${entranceDistance.toFixed(1)}m). Recommended minimum: ${rules.minDistanceFromEntrance}m away.`,
+        });
+    }
+
+    if (rules.maxDistanceFromEntrance && entranceDistance > rules.maxDistanceFromEntrance) {
+        violations.push({
+            rule: `${room.type}_entrance_max_distance`,
+            severity: 'warning',
+            description: `${room.type} is too far from entrance (${entranceDistance.toFixed(1)}m). Recommended maximum: ${rules.maxDistanceFromEntrance}m away.`,
+        });
+    }
+
+    // Check hallway connection
+    if (rules.requiresHallwayConnection) {
+        const connectedToHallway = rooms.some(
+            r => r.type === 'hallway' && areRoomsAdjacent(room, r)
+        );
+
+        if (!connectedToHallway) {
+            violations.push({
+                rule: `${room.type}_hallway_connection`,
+                severity: 'error',
+                description: `${room.type} must be directly connected to a hallway.`,
+            });
+        }
+    }
+
+    // Check must-connect-to constraints
+    if (rules.mustConnectTo && rules.mustConnectTo.length > 0) {
+        const connectedTypes = rules.mustConnectTo.filter(type =>
+            rooms.some(r => r.type === type && areRoomsAdjacent(room, r))
+        );
+
+        if (connectedTypes.length === 0) {
+            violations.push({
+                rule: `${room.type}_must_connect`,
+                severity: 'warning',
+                description: `${room.type} should be adjacent to: ${rules.mustConnectTo.join(', ')}.`,
+            });
+        }
+    }
+
+    // Check should-not-be-touched-by constraints
+    if (rules.shouldNotBeTouchedBy && rules.shouldNotBeTouchedBy.length > 0) {
+        const badNeighbors = rules.shouldNotBeTouchedBy.filter(type =>
+            rooms.some(r => r.type === type && areRoomsAdjacent(room, r))
+        );
+
+        if (badNeighbors.length > 0) {
+            violations.push({
+                rule: `${room.type}_bad_neighbors`,
+                severity: 'warning',
+                description: `${room.type} should not be adjacent to: ${badNeighbors.join(', ')}.`,
+            });
+        }
+    }
+
+    // Check distance between same room types
+    if (rules.minDistanceBetween) {
+        const sameTypeRooms = rooms.filter(r => r.type === room.type && r !== room);
+        const tooClose = sameTypeRooms.some(
+            r => getDistanceBetweenRooms(room, r) < rules.minDistanceBetween!
+        );
+
+        if (tooClose) {
+            violations.push({
+                rule: `${room.type}_separation`,
+                severity: 'info',
+                description: `Multiple ${room.type}s should be separated by at least ${rules.minDistanceBetween}m.`,
+            });
+        }
+    }
+
+    return violations;
+}
+
+/**
+ * Validate overall layout constraints
+ */
+function validateLayoutConstraints(rooms: Room[]): LayoutConstraint[] {
+    const violations: LayoutConstraint[] = [];
+
+    // Check for room overlaps
+    for (let i = 0; i < rooms.length; i++) {
+        for (let j = i + 1; j < rooms.length; j++) {
+            if (doRoomsOverlap(rooms[i], rooms[j])) {
+                violations.push({
+                    rule: 'room_overlap',
+                    severity: 'error',
+                    description: `${rooms[i].type} and ${rooms[j].type} are overlapping. This is invalid.`,
+                });
+            }
+        }
+    }
+
+    // Check entrance accessibility (hallway near entrance)
+    const hallway = rooms.find(r => r.type === 'hallway');
+    if (hallway) {
+        const hallwayDistance = getDistanceFromEntrance(hallway);
+        if (hallwayDistance > 2.0) {
+            violations.push({
+                rule: 'entrance_accessibility',
+                severity: 'warning',
+                description: `Hallway/main circulation should be near entrance. Current distance: ${hallwayDistance.toFixed(1)}m.`,
+            });
+        }
+    } else {
+        violations.push({
+            rule: 'no_hallway',
+            severity: 'warning',
+            description: 'Layout lacks a hallway. Rooms require circulation space.',
+        });
+    }
+
+    // Check if living room is accessible from entrance
+    const livingRoom = rooms.find(r => r.type === 'living_room');
+    if (livingRoom) {
+        const livingDistance = getDistanceFromEntrance(livingRoom);
+        if (livingDistance > 5.0) {
+            violations.push({
+                rule: 'living_room_distance',
+                severity: 'info',
+                description: `Living room is far from entrance (${livingDistance.toFixed(1)}m). Consider repositioning for better flow.`,
+            });
+        }
+    }
+
+    return violations;
+}
+
+/**
+ * Generate improvement suggestions
+ */
+function generateSuggestions(rooms: Room[], violations: LayoutConstraint[]): string[] {
+    const suggestions: string[] = [];
+    const errorCount = violations.filter(v => v.severity === 'error').length;
+
+    if (errorCount === 0) {
+        suggestions.push('✓ Layout meets all architectural standards.');
+    }
+
+    // Suggest hallway addition
+    if (violations.some(v => v.rule === 'no_hallway')) {
+        suggestions.push('Consider adding a hallway for better room circulation.');
+    }
+
+    // Suggest bathroom relocation
+    const bathroomViolations = violations.filter(v => v.rule.startsWith('bathroom_'));
+    if (bathroomViolations.length > 0) {
+        suggestions.push('Reposition bathroom away from main entrance for privacy.');
+    }
+
+    // Suggest kitchen relocation
+    const kitchenViolations = violations.filter(v => v.rule.startsWith('kitchen_'));
+    if (kitchenViolations.length > 0) {
+        suggestions.push('Keep kitchen near living area and main entrance for utility access.');
+    }
+
+    // Suggest bedroom spacing
+    const bedrooms = rooms.filter(r => r.type === 'bedroom');
+    if (bedrooms.length > 1) {
+        const tooClose = violations.some(v => v.rule === 'bedroom_separation');
+        if (tooClose) {
+            suggestions.push('Increase spacing between bedrooms for privacy.');
+        }
+    }
+
+    // Suggest overall flow
+    if (violations.length > 5) {
+        suggestions.push('Consider regenerating with more specific description for better layout.');
+    }
+
+    return suggestions;
+}
+
+/**
+ * Main validation function
+ */
+export function validateLayout(rooms: Room[]): LayoutValidationResult {
+    const allViolations: LayoutConstraint[] = [];
+
+    // Validate each room
+    rooms.forEach(room => {
+        const roomViolations = validateRoomConstraints(room, rooms);
+        allViolations.push(...roomViolations);
+    });
+
+    // Validate overall layout
+    const layoutViolations = validateLayoutConstraints(rooms);
+    allViolations.push(...layoutViolations);
+
+    // Separate violations by severity
+    const errors = allViolations.filter(v => v.severity === 'error');
+    const warnings = allViolations.filter(v => v.severity === 'warning' || v.severity === 'info');
+
+    // Generate suggestions
+    const suggestions = generateSuggestions(rooms, allViolations);
+
+    return {
+        isValid: errors.length === 0,
+        violations: errors,
+        warnings: warnings,
+        suggestions: suggestions,
+    };
+}
+
+/**
+ * Get validation report as formatted string
+ */
+export function getValidationReport(result: LayoutValidationResult): string {
+    const lines: string[] = [];
+
+    lines.push('='.repeat(50));
+    lines.push('LAYOUT VALIDATION REPORT');
+    lines.push('='.repeat(50));
+    lines.push('');
+
+    // Status
+    if (result.isValid) {
+        lines.push('✓ STATUS: VALID');
+    } else {
+        lines.push(`✗ STATUS: INVALID (${result.violations.length} error${result.violations.length !== 1 ? 's' : ''})`);
+    }
+    lines.push('');
+
+    // Errors
+    if (result.violations.length > 0) {
+        lines.push('ERRORS:');
+        result.violations.forEach(v => {
+            lines.push(`  ✗ ${v.description}`);
+        });
+        lines.push('');
+    }
+
+    // Warnings
+    if (result.warnings.length > 0) {
+        lines.push('WARNINGS & NOTES:');
+        result.warnings.forEach(w => {
+            lines.push(`  ⚠ ${w.description}`);
+        });
+        lines.push('');
+    }
+
+    // Suggestions
+    if (result.suggestions.length > 0) {
+        lines.push('SUGGESTIONS:');
+        result.suggestions.forEach(s => {
+            lines.push(`  → ${s}`);
+        });
+        lines.push('');
+    }
+
+    lines.push('='.repeat(50));
+
+    return lines.join('\n');
+}
+
+/**
+ * Get rules for a specific room type
+ */
+export function getRoomRules(roomType: string): RoomPlacementRule | null {
+    return ROOM_PLACEMENT_RULES[roomType] || null;
+}
+
+/**
+ * Get all defined rules
+ */
+export function getAllRules(): Record<string, RoomPlacementRule> {
+    return ROOM_PLACEMENT_RULES;
+}

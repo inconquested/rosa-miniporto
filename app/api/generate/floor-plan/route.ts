@@ -3,6 +3,7 @@ import { FloorPlanData, GeminiApiResponse } from "@/types";
 import { NextRequest, NextResponse } from "next/server";
 import { BuildPrompt, BuildSysInstruction } from "@/lib/prompt";
 import { llmConfig } from "@/config/llm.config";
+import { validateLayout } from "@/lib/validator-engine";
 
 const genAI = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GOOGLE_API_KEY! });
 
@@ -39,6 +40,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+
+
     // Validate structure
     if (!floorPlan.rooms || !Array.isArray(floorPlan.rooms)) {
       throw new Error("Invalid floor plan structure: missing rooms array");
@@ -72,7 +75,26 @@ export async function POST(req: NextRequest) {
       notes: floorPlan.notes || "AI-generated floor plan",
     };
 
+    //validate against validator-engine
+    const validationResult = validateLayout(validRooms)
+
+    console.log('Validation Result:', {
+      'isValid': validationResult.isValid,
+      'warnings': validationResult.warnings.length,
+      'violations': validationResult.violations.length,
+      'suggestions': validationResult.suggestions.length
+    })
+
+    //if isValid is false, return the validationResult
+    if (!validationResult.isValid) {
+      return NextResponse.json({
+        ...enrichedFloorPlan,
+        validation: validationResult
+      }, { status: 422 });
+    }
+
     return NextResponse.json(enrichedFloorPlan, { status: 200 });
+
   } catch (error: any) {
     console.error("Error generating floor plan:", error);
     return NextResponse.json({
