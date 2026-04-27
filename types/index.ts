@@ -1,5 +1,7 @@
+export type RoomType = 'bedroom' | 'kitchen' | 'bathroom' | 'living_room' | 'office' | 'hallway' | 'garage' | 'carport' | 'laundry' | 'foyer';
+
 export interface Room {
-    type: string;
+    type: RoomType;
     area: number;
     width: number;
     height: number;

@@ -81,9 +81,27 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         minDistanceFromEntrance: 2.0,
         mustConnectTo: ['hallway', 'kitchen'],
         shouldNotBeTouchedBy: ['bedroom'],
-        requiresHallwayConnection: true,
+        requiresHallwayConnection: false, // Can connect to kitchen instead
         minAreaSqft: 30,
         maxAreaSqft: 80,
+    },
+    foyer: {
+        roomType: 'foyer',
+        minDistanceFromEntrance: 0.0,
+        mustConnectTo: ['hallway', 'living_room'],
+        shouldNotBeTouchedBy: [],
+        requiresHallwayConnection: false,
+        minAreaSqft: 30,
+        maxAreaSqft: 100,
+    },
+    carport: {
+        roomType: 'carport',
+        minDistanceFromEntrance: 0.0,
+        mustConnectTo: ['hallway', 'foyer'],
+        shouldNotBeTouchedBy: ['bedroom'],
+        requiresHallwayConnection: false,
+        minAreaSqft: 150,
+        maxAreaSqft: 400,
     },
 };
 
@@ -275,10 +293,12 @@ function validateLayoutConstraints(rooms: Room[]): LayoutConstraint[] {
     for (let i = 0; i < rooms.length; i++) {
         for (let j = i + 1; j < rooms.length; j++) {
             if (doRoomsOverlap(rooms[i], rooms[j])) {
+                const r1 = rooms[i];
+                const r2 = rooms[j];
                 violations.push({
                     rule: 'room_overlap',
                     severity: 'error',
-                    description: `${rooms[i].type} and ${rooms[j].type} are overlapping. This is invalid.`,
+                    description: `OVERLAP DETECTED: ${r1.type} [x:${r1.x}, y:${r1.y}, w:${r1.width}, h:${r1.height}] overlaps with ${r2.type} [x:${r2.x}, y:${r2.y}, w:${r2.width}, h:${r2.height}]. Use AABB logic to shift coordinates.`,
                 });
             }
         }
@@ -315,6 +335,18 @@ function validateLayoutConstraints(rooms: Room[]): LayoutConstraint[] {
             });
         }
     }
+
+    // Check for "floating" rooms (not connected to any other room)
+    rooms.forEach(room => {
+        const hasNeighbors = rooms.some(other => other !== room && areRoomsAdjacent(room, other));
+        if (!hasNeighbors && rooms.length > 1) {
+            violations.push({
+                rule: 'floating_room',
+                severity: 'error',
+                description: `${room.type} is floating and not connected to the rest of the house.`,
+            });
+        }
+    });
 
     return violations;
 }

@@ -1,5 +1,8 @@
 // types/layoutRules.ts
+import type { Room } from './index';
 
+
+export { Room };
 export interface LayoutConstraint {
     rule: string;
     severity: 'error' | 'warning' | 'info';
@@ -23,13 +26,4 @@ export interface LayoutValidationResult {
     violations: LayoutConstraint[];
     warnings: LayoutConstraint[];
     suggestions: string[];
-}
-
-export interface Room {
-    type: 'bedroom' | 'kitchen' | 'bathroom' | 'living_room' | 'office' | 'hallway' | 'garage' | 'carport' | 'laundry' | 'foyer';
-    area: number;
-    width: number;
-    height: number;
-    x: number;
-    y: number;
 }

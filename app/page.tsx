@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import { cn } from "@/lib/utils";
 import { FloorPlanViewer } from '@/components/floor-plan-viewer';
 import { Button } from "@/components/ui/button"
 import { calculateBudget } from '@/lib/budget-calculator';
@@ -13,6 +14,7 @@ export default function Home() {
   const [budget, setBudget] = useState<BudgetData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isListening, setIsListening] = useState(false);
 
   const SAMPLE_DATA: FloorPlanData = {
     "rooms": [
@@ -39,28 +41,46 @@ export default function Home() {
   const handleSpeechInput = () => {
     const lang = navigator.language;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    
     if (!SpeechRecognition) {
       setError("Speech recognition is not supported in this browser.");
       return;
     }
+
     const recognition = new SpeechRecognition();
     recognition.lang = lang;
     recognition.interimResults = true;
     recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setError('');
+    };
+
     recognition.onresult = (e: any) => {
       const transcript = Array.from(e.results)
         .map((result: any) => result[0])
         .map((result: any) => result.transcript)
-        .join('')
+        .join('');
       setInput(transcript);
-    }
+    };
+
     recognition.onerror = (event: any) => {
-      setError(event.error);
-    }
+      setError(`Speech error: ${event.error}`);
+      setIsListening(false);
+    };
+
     recognition.onend = () => {
-      setLoading(false);
+      setIsListening(false);
+    };
+
+    try {
+      recognition.start();
+    } catch (e) {
+      console.error(e);
+      setIsListening(false);
     }
-  }
+  };
 
   const handleClearFloorplan = () => {
     setFloorPlan(null);
@@ -91,7 +111,9 @@ export default function Home() {
       }
 
       setFloorPlan(data);
-      setBudget(calculateBudget(data.rooms));
+      if (data.rooms) {
+        setBudget(calculateBudget(data.rooms));
+      }
     } catch (e: any) {
       setError('An unexpected error occurred. Please try again.');
       console.error(e);
@@ -131,9 +153,14 @@ export default function Home() {
                         variant="ghost"
                         size="icon-sm"
                         onClick={handleSpeechInput}
-                        className="rounded-full text-primary hover:bg-primary/10! hover:text-primary transition-all duration-200"
+                        className={cn(
+                          "rounded-full transition-all duration-200",
+                          isListening 
+                            ? "text-rose-500 bg-rose-50 animate-pulse" 
+                            : "text-primary hover:bg-primary/10! hover:text-primary"
+                        )}
                       >
-                        <MicrophoneIcon className="size-5" />
+                        <MicrophoneIcon className={cn("size-5", isListening && "fill-current")} />
                       </InputGroupButton>
                     ) : (
                       <InputGroupButton
@@ -156,8 +183,8 @@ export default function Home() {
                 !!!floorPlan && (
                   <Button
                     variant="ghost"
-                    size="sm"
-                    className="h-8 text-xs text-primary hover:text-rose-950 hover:bg-primary/10! px-4"
+                    size="lg"
+                    className="h-10 text-sm text-primary font-bold hover:text-rose-950 hover:bg-primary/10! px-4"
                     onClick={handleLoadSample}
                   >
                     Try a sample
@@ -167,8 +194,8 @@ export default function Home() {
             </div>
           </div>
 
-          {error && (
-            <div className="mt-4 p-3 bg-rose-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-in fade-in slide-in-from-top-1">
+          {!!error && (
+            <div className="mt-4 p-3 bg-rose-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-in fade-in slide-in-from-left absolute left-4 bottom-4">
               {error}
             </div>
           )}
