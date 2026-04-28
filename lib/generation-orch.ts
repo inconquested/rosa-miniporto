@@ -84,7 +84,7 @@ function processFloorPlanData(raw: unknown): FloorPlanData {
 
     const result = FloorPlanZodSchema.safeParse(candidate);
     if (!result.success) {
-        throw new Error(`Invalid structure: ${result.error.errors.map(e => e.message).join(', ')}`);
+        throw new Error(`Invalid structure: ${result.error.issues.map((e: any) => e.message).join(', ')}`);
     }
     return result.data;
 }

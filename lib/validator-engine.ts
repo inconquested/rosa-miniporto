@@ -184,7 +184,7 @@ function validateRoomConstraints(room: Room, rooms: Room[]): LayoutConstraint[] 
     }
 
     // Check area constraints
-    if (room.area < rules.minAreaSqft) {
+    if (rules.minAreaSqft !== undefined && room.area < rules.minAreaSqft) {
         violations.push({
             rule: `${room.type}_area_min`,
             severity: 'warning',
@@ -192,7 +192,7 @@ function validateRoomConstraints(room: Room, rooms: Room[]): LayoutConstraint[] 
         });
     }
 
-    if (room.area > rules.maxAreaSqft) {
+    if (rules.maxAreaSqft !== undefined && room.area > rules.maxAreaSqft) {
         violations.push({
             rule: `${room.type}_area_max`,
             severity: 'warning',

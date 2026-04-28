@@ -18,13 +18,13 @@ export default function Home() {
 
   const SAMPLE_DATA: FloorPlanData = {
     "rooms": [
-      { "type": "Open Area", "area": 70, "width": 10, "height": 7, "x": 0, "y": 0 },
-      { "type": "Kitchen", "area": 25, "width": 5, "height": 5, "x": 10, "y": 0 },
-      { "type": "Foyer", "area": 10, "width": 5, "height": 2, "x": 10, "y": 5 },
-      { "type": "Hallway", "area": 30, "width": 15, "height": 2, "x": 0, "y": 7 },
-      { "type": "Bedroom 1", "area": 15, "width": 5, "height": 3, "x": 0, "y": 9 },
-      { "type": "Bedroom 2", "area": 15, "width": 5, "height": 3, "x": 5, "y": 9 },
-      { "type": "Bathroom", "area": 15, "width": 5, "height": 3, "x": 10, "y": 9 }
+      { "type": "living_room", "area": 70, "width": 10, "height": 7, "x": 0, "y": 0 },
+      { "type": "kitchen", "area": 25, "width": 5, "height": 5, "x": 10, "y": 0 },
+      { "type": "foyer", "area": 10, "width": 5, "height": 2, "x": 10, "y": 5 },
+      { "type": "hallway", "area": 30, "width": 15, "height": 2, "x": 0, "y": 7 },
+      { "type": "bedroom", "area": 15, "width": 5, "height": 3, "x": 0, "y": 9 },
+      { "type": "bedroom", "area": 15, "width": 5, "height": 3, "x": 5, "y": 9 },
+      { "type": "bathroom", "area": 15, "width": 5, "height": 3, "x": 10, "y": 9 }
     ],
     "totalArea": 180,
     "totalWidth": 15,
