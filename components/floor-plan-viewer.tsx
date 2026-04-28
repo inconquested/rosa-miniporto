@@ -1,12 +1,12 @@
 'use client';
 
 import { Canvas } from '@react-three/fiber';
-import { OrbitControls, Text, Grid, ContactShadows } from '@react-three/drei';
+import { OrbitControls, Grid, ContactShadows } from '@react-three/drei';
 import { Suspense, useEffect } from 'react';
 import { BudgetData, Room } from '@/types';
 import { useState, useMemo, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowCounterClockwiseIcon, HouseIcon, RulerIcon } from '@phosphor-icons/react';
+import { ArrowCounterClockwiseIcon, HouseIcon, ChartBarIcon, XIcon } from '@phosphor-icons/react';
 import { RoomBox } from './viewer/geometries/room-box';
 import { TotalDimensions } from './viewer/geometries/total-dimensions';
 import { EmptyState } from './viewer/empty-state';
@@ -15,6 +15,7 @@ import { ANIMATION_DURATION } from './viewer/geometries/constants';
 export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Room[], onFloorplanClear: () => void, budget?: BudgetData }) {
     const [leftDown, setLeftDown] = useState(false);
     const [rightDown, setRightDown] = useState(false);
+    const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(true);
     const controlsRef = useRef<any>(null);
 
     const bounds = useMemo(() => {
@@ -203,36 +204,61 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
                 </Button>
             </div>
 
-            {/* Measurement legend */}
-            <div className="absolute top-4 left-4 bg-neutral-600/5 text-neutral-950 p-4 rounded-xl text-xs font-mono border border-white/20 backdrop-blur-sm shadow-xs">
-                <div className="font-bold text-rose-700 mb-2 tracking-wider">FLOORPLAN ANALYTICS</div>
-                <div className="space-y-1">
-                    <div className="flex justify-between gap-4">
-                        <span>Total Area:</span>
-                        <span>
-                            <span className="text-zinc-950 font-semibold italic">{(rooms.reduce((s, r) => s + r.area, 0)).toFixed(0)}</span>
-                            <span className="text-zinc-950 font-semibold"> sqft</span>
-                        </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                        <span>Rooms:</span>
-                        <span>
-                            <span className="text-zinc-950 font-semibold italic">{rooms.length}</span>
-                            <span className="text-zinc-950 font-semibold"> Units</span>
-                        </span>
-                    </div>
-                    <div className="flex justify-between gap-4">
-                        <span>Apprx Budget:</span>
-                        <span>
-                            <span className="text-zinc-950 font-semibold italic">{(budget?.total ?? 0).toFixed(0)}</span>
-                            <span className="text-zinc-950 font-semibold"> $</span>
-                        </span>
+            {/* Analytics Toggle Button */}
+            {!isAnalyticsOpen && (
+                <div className="absolute top-4 left-4 z-20 animate-in fade-in duration-500">
+                    <Button
+                        variant="outline"
+                        onClick={() => setIsAnalyticsOpen(true)}
+                        className="bg-white/80 backdrop-blur-md border-white/20 shadow-lg rounded-2xl p-4 hover:bg-white transition-all group"
+                    >
+                        <ChartBarIcon className="size-5 text-rose-600 group-hover:scale-110 transition-transform" />
+                    </Button>
+                </div>
+            )}
+
+            {/* Measurement legend (Original Design) */}
+            {isAnalyticsOpen && (
+                <div className="absolute top-4 left-4 z-20 animate-in fade-in slide-in-from-left duration-300">
+                    <div className="relative bg-neutral-600/5 text-neutral-950 p-4 rounded-xl text-xs font-mono border border-white/20 backdrop-blur-sm shadow-xs min-w-[220px]">
+                        {/* Close Button */}
+                        <button
+                            onClick={() => setIsAnalyticsOpen(false)}
+                            className="absolute -right-2.5 -top-2.5 size-6 rounded-full bg-white shadow-md border border-slate-200 flex items-center justify-center hover:bg-rose-50 hover:text-rose-600 transition-colors z-30"
+                        >
+                            <XIcon className="size-3" />
+                        </button>
+
+                        <div className="font-bold text-rose-700 mb-2 tracking-wider">FLOORPLAN ANALYTICS</div>
+                        <div className="space-y-1">
+                            <div className="flex justify-between gap-4">
+                                <span>Total Area:</span>
+                                <span>
+                                    <span className="text-zinc-950 font-semibold italic">{(rooms.reduce((s, r) => s + r.area, 0)).toFixed(0)}</span>
+                                    <span className="text-zinc-950 font-semibold"> sqft</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                                <span>Rooms:</span>
+                                <span>
+                                    <span className="text-zinc-950 font-semibold italic">{rooms.length}</span>
+                                    <span className="text-zinc-950 font-semibold"> Units</span>
+                                </span>
+                            </div>
+                            <div className="flex justify-between gap-4">
+                                <span>Apprx Budget:</span>
+                                <span>
+                                    <span className="text-zinc-950 font-semibold italic">{(budget?.total ?? 0).toFixed(0)}</span>
+                                    <span className="text-zinc-950 font-semibold"> $</span>
+                                </span>
+                            </div>
+                        </div>
+                        <div className="text-zinc-500 text-[10px] mt-3 pt-3 border-t border-zinc-800">
+                            {isAnimating ? 'BUILDING...' : 'LEFT DRAG: PAN • RIGHT DRAG: ROTATE'}
+                        </div>
                     </div>
                 </div>
-                <div className="text-zinc-500 text-[10px] mt-3 pt-3 border-t border-zinc-800">
-                    {isAnimating ? 'BUILDING...' : 'LEFT DRAG: PAN • RIGHT DRAG: ROTATE'}
-                </div>
-            </div>
+            )}
         </div>
     );
 }

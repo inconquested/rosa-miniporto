@@ -11,7 +11,7 @@ export const COLORS = {
     other: '#f1f5f9'
 };
 
-export const WALL_HEIGHT = 2.4;
-export const WALL_THICKNESS = 0.15;
-export const DIMENSION_OFFSET = 0.3;
-export const ANIMATION_DURATION = 0.4; // seconds per room
+export const WALL_HEIGHT = 2.2;
+export const WALL_THICKNESS = 0.125;
+export const DIMENSION_OFFSET = 0.2;
+export const ANIMATION_DURATION = 0.5; // seconds per room

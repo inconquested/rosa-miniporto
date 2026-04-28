@@ -18,9 +18,9 @@ export default function Home() {
 
   const SAMPLE_DATA: FloorPlanData = {
     "rooms": [
-      { "type": "living_room", "area": 70, "width": 10, "height": 7, "x": 0, "y": 0 },
-      { "type": "kitchen", "area": 25, "width": 5, "height": 5, "x": 10, "y": 0 },
-      { "type": "foyer", "area": 10, "width": 5, "height": 2, "x": 10, "y": 5 },
+      { "type": "living_room", "area": 70, "width": 10, "height": 7, "x": 5, "y": 0 },
+      { "type": "kitchen", "area": 25, "width": 5, "height": 5, "x": 0, "y": 0 },
+      { "type": "foyer", "area": 10, "width": 5, "height": 2, "x": 0, "y": 5 },
       { "type": "hallway", "area": 30, "width": 15, "height": 2, "x": 0, "y": 7 },
       { "type": "bedroom", "area": 15, "width": 5, "height": 3, "x": 0, "y": 9 },
       { "type": "bedroom", "area": 15, "width": 5, "height": 3, "x": 5, "y": 9 },
@@ -182,9 +182,9 @@ export default function Home() {
               {
                 !!!floorPlan && (
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="lg"
-                    className="h-10 text-sm text-primary font-bold hover:text-rose-950 hover:bg-primary/10! px-4"
+                    className="h-10 text-sm text-primary font-bold hover:text-rose-950 hover:bg-primary/10! px-4 bg-transparent"
                     onClick={handleLoadSample}
                   >
                     Try a sample
@@ -205,6 +205,20 @@ export default function Home() {
           </p>
         </div>
       )}
+
+      {/* Development Progress Badge */}
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-none sm:pointer-events-auto">
+        <div className="flex items-center gap-2.5 px-4 py-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl border border-white/40 dark:border-black/20 rounded-2xl shadow-[0_8px_32px_0_rgba(31,38,135,0.07)] animate-in fade-in slide-in-from-top duration-700">
+          <div className="relative flex h-2 w-2 transition-all ease-in">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+          </div>
+          <a href='https://github.com/inconquested/rosa-miniporto' className="text-[10px] font-semibold text-rose-900 dark:text-rose-100 uppercase tracking-widest whitespace-nowrap underline">
+            Development On Progress
+          </a>
+        </div>
+      </div>
+
 
       {/* Error Message */}
       {!!error && (
