@@ -48,12 +48,11 @@ let _client: Mistral | null = null;
 
 function getMistralClient(): Mistral {
     let apiKey = process.env.MISTRAL_API_KEY;
-    
+
     if (!apiKey) {
         throw new Error('MISTRAL_API_KEY environment variable is not set');
     }
 
-    // Safeguard: Strip "MISTRAL_API_KEY=" prefix if it was accidentally pasted into the environment variable
     if (apiKey.startsWith('MISTRAL_API_KEY=')) {
         apiKey = apiKey.replace('MISTRAL_API_KEY=', '').trim();
     }
@@ -166,7 +165,7 @@ export async function generateFloorPlanWithFallback(
             const rawCorr = JSON.parse(extractText(corrResponse));
             const correctedRooms = Array.isArray(rawCorr) ? rawCorr : (rawCorr as any).rooms ?? rawCorr;
             const validatedRooms = z.array(RoomSchema).parse(correctedRooms);
-            
+
             const correctionData: FloorPlanData = { ...data, rooms: validatedRooms };
             const finalValidation = validateLayout(validatedRooms);
 
