@@ -47,11 +47,19 @@ export interface LayoutGenerationResult {
 let _client: Mistral | null = null;
 
 function getMistralClient(): Mistral {
-    if (!process.env.MISTRAL_API_KEY) {
+    let apiKey = process.env.MISTRAL_API_KEY;
+    
+    if (!apiKey) {
         throw new Error('MISTRAL_API_KEY environment variable is not set');
     }
+
+    // Safeguard: Strip "MISTRAL_API_KEY=" prefix if it was accidentally pasted into the environment variable
+    if (apiKey.startsWith('MISTRAL_API_KEY=')) {
+        apiKey = apiKey.replace('MISTRAL_API_KEY=', '').trim();
+    }
+
     if (!_client) {
-        _client = new Mistral({ apiKey: process.env.MISTRAL_API_KEY! });
+        _client = new Mistral({ apiKey });
     }
     return _client;
 }
