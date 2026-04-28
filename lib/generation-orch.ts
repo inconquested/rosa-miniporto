@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { Mistral } from '@mistralai/mistralai';
 
 import { validateLayout } from './validator-engine';
-import { BuildPrompt, BuildSysInstruction } from './prompt';
+import { BuildPrompt } from './prompt';
 import { FloorPlanZodSchema, RoomSchema } from '@/schema/floor-plan';
 import {
     llmConfig,

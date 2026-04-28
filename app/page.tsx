@@ -41,7 +41,7 @@ export default function Home() {
   const handleSpeechInput = () => {
     const lang = navigator.language;
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
+
     if (!SpeechRecognition) {
       setError("Speech recognition is not supported in this browser.");
       return;
@@ -155,8 +155,8 @@ export default function Home() {
                         onClick={handleSpeechInput}
                         className={cn(
                           "rounded-full transition-all duration-200",
-                          isListening 
-                            ? "text-rose-500 bg-rose-50 animate-pulse" 
+                          isListening
+                            ? "text-rose-500 bg-rose-50 animate-pulse"
                             : "text-primary hover:bg-primary/10! hover:text-primary"
                         )}
                       >
@@ -194,11 +194,7 @@ export default function Home() {
             </div>
           </div>
 
-          {!!error && (
-            <div className="mt-4 p-3 bg-rose-50 border border-red-100 rounded-xl text-red-600 text-xs font-medium animate-in fade-in slide-in-from-left absolute left-4 bottom-4">
-              {error}
-            </div>
-          )}
+
         </div>
       </div>
       {/* 4. Notes/Description Overlay (Bottom Right) */}
@@ -207,6 +203,16 @@ export default function Home() {
           <p className="text-xs text-neutral-950 italic leading-relaxed bg-neutral-600/5 backdrop-blur-sm p-3 rounded-lg border border-white/40">
             "{floorPlan.notes}"
           </p>
+        </div>
+      )}
+
+      {/* Error Message */}
+      {!!error && (
+        <div className="fixed md:absolute z-50 top-4 left-4 right-4 md:top-auto md:bottom-8 md:left-8 md:right-auto md:w-auto md:max-w-md p-4 bg-white/90 backdrop-blur-sm border border-rose-100 rounded-2xl text-rose-600 text-xs font-semibold shadow-xl animate-in fade-in slide-in-from-top md:slide-in-from-left duration-300">
+          <div className="flex items-center gap-3">
+            <div className="size-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            {error}
+          </div>
         </div>
       )}
     </div>
