@@ -24,7 +24,6 @@ export function DimensionLine({
     animationProgress?: number;
 }) {
     const midX = (from[0] + to[0]) / 2;
-    const midY = (from[1] + to[1]) / 2;
     const midZ = (from[2] + to[2]) / 2;
 
     // Determine orientation
@@ -42,8 +41,8 @@ export function DimensionLine({
     };
 
     let appliedOffset = offset || 0.3;
-    let initialX = isHorizontal ? midX : midX + appliedOffset;
-    let initialZ = isHorizontal ? midZ + appliedOffset : midZ;
+    const initialX = isHorizontal ? midX : midX + appliedOffset;
+    const initialZ = isHorizontal ? midZ + appliedOffset : midZ;
 
     if (rooms.length > 0 && checkCollision(initialX, initialZ)) {
         appliedOffset = -appliedOffset;
@@ -53,47 +52,46 @@ export function DimensionLine({
         ? [midX, 0.1, midZ + appliedOffset]
         : [midX + appliedOffset, 0.1, midZ];
 
-    // Animate line appearance
-    const animatedFrom: [number, number, number] = isAnimating
-        ? [
-            from[0] + (to[0] - from[0]) * (1 - animationProgress),
-            from[1],
-            from[2] + (to[2] - from[2]) * (1 - animationProgress)
-        ]
-        : from;
+    // Animate line appearance — compute scalar endpoints so the memoised
+    // geometries below only rebuild when a coordinate actually changes.
+    const [fx, fy, fz] = from;
+    const [tx, ty, tz] = to;
+    const ax = isAnimating ? fx + (tx - fx) * (1 - animationProgress) : fx;
+    const ay = fy;
+    const az = isAnimating ? fz + (tz - fz) * (1 - animationProgress) : fz;
 
     const lineGeometry = useMemo(() => {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(
-            new Float32Array([animatedFrom[0], animatedFrom[1], animatedFrom[2], to[0], to[1], to[2]]),
+            new Float32Array([ax, ay, az, tx, ty, tz]),
             3
         ));
         return geometry;
-    }, [animatedFrom, to]);
+    }, [ax, ay, az, tx, ty, tz]);
 
     const tickGeometry1 = useMemo(() => {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(
             new Float32Array([
-                animatedFrom[0] - 0.15, animatedFrom[1], animatedFrom[2],
-                animatedFrom[0] + 0.15, animatedFrom[1], animatedFrom[2]
+                ax - 0.15, ay, az,
+                ax + 0.15, ay, az
             ]),
             3
         ));
         return geometry;
-    }, [animatedFrom]);
+    }, [ax, ay, az]);
 
     const tickGeometry2 = useMemo(() => {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute('position', new THREE.BufferAttribute(
             new Float32Array([
-                to[0] - 0.15, to[1], to[2],
-                to[0] + 0.15, to[1], to[2]
+                tx - 0.15, ty, tz,
+                tx + 0.15, ty, tz
             ]),
             3
         ));
         return geometry;
-    }, [to]);
+    }, [tx, ty, tz]);
 
     return (
         <group>

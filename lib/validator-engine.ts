@@ -8,35 +8,39 @@ import { Room, RoomPlacementRule, LayoutValidationResult, LayoutConstraint } fro
  */
 
 // Define architectural rules per room type
+// NOTE: all areas are in square meters (m²) — every layout dimension is metric.
+// Adjacency rules mirror the "grid-based spine" architecture in lib/prompt.ts:
+//   hallway ── bedroom ── bathroom
+//   hallway ── living_room ── kitchen
 const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
     bedroom: {
         roomType: 'bedroom',
         minDistanceFromEntrance: 1.0,
         mustConnectTo: ['hallway'],
-        shouldNotBeTouchedBy: ['kitchen', 'bathroom'],
+        shouldNotBeTouchedBy: ['kitchen'], // a private bathroom may attach to a bedroom
         minDistanceBetween: 1.5, // Bedrooms should be separated
         requiresHallwayConnection: true,
-        minAreaSqft: 80,
-        maxAreaSqft: 250,
+        minAreaSqm: 7,
+        maxAreaSqm: 23,
     },
     bathroom: {
         roomType: 'bathroom',
         minDistanceFromEntrance: 3.0, // Far from entrance (privacy)
-        mustConnectTo: ['hallway', 'bedroom'],
+        mustConnectTo: ['bedroom'], // attaches to a bedroom, not the hallway
         shouldNotBeTouchedBy: ['kitchen', 'living_room'],
-        requiresHallwayConnection: true,
-        minAreaSqft: 35,
-        maxAreaSqft: 100,
+        requiresHallwayConnection: false,
+        minAreaSqm: 3,
+        maxAreaSqm: 9,
     },
     kitchen: {
         roomType: 'kitchen',
         minDistanceFromEntrance: 2.0, // Close to entrance (utility access)
         maxDistanceFromEntrance: 20.0,
-        mustConnectTo: ['hallway', 'living_room'],
+        mustConnectTo: ['living_room'], // reached through the living room, not the hallway
         shouldNotBeTouchedBy: ['bedroom', 'bathroom'],
-        requiresHallwayConnection: true,
-        minAreaSqft: 80,
-        maxAreaSqft: 300,
+        requiresHallwayConnection: false,
+        minAreaSqm: 7,
+        maxAreaSqm: 28,
     },
     living_room: {
         roomType: 'living_room',
@@ -45,8 +49,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway', 'kitchen'],
         shouldNotBeTouchedBy: [],
         requiresHallwayConnection: false, // Can be directly accessible
-        minAreaSqft: 150,
-        maxAreaSqft: 600,
+        minAreaSqm: 20,
+        maxAreaSqm: 42,
     },
     office: {
         roomType: 'office',
@@ -54,8 +58,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway'],
         shouldNotBeTouchedBy: ['kitchen', 'living_room'],
         requiresHallwayConnection: true,
-        minAreaSqft: 80,
-        maxAreaSqft: 200,
+        minAreaSqm: 8,
+        maxAreaSqm: 20,
     },
     hallway: {
         roomType: 'hallway',
@@ -63,8 +67,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: [],
         shouldNotBeTouchedBy: [],
         requiresHallwayConnection: false, // IS the hallway
-        minAreaSqft: 20,
-        maxAreaSqft: 150,
+        minAreaSqm: 4,
+        maxAreaSqm: 14,
     },
     garage: {
         roomType: 'garage',
@@ -73,8 +77,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway'],
         shouldNotBeTouchedBy: ['bedroom', 'bathroom', 'kitchen'],
         requiresHallwayConnection: true,
-        minAreaSqft: 150,
-        maxAreaSqft: 500,
+        minAreaSqm: 15,
+        maxAreaSqm: 40,
     },
     laundry: {
         roomType: 'laundry',
@@ -82,8 +86,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway', 'kitchen'],
         shouldNotBeTouchedBy: ['bedroom'],
         requiresHallwayConnection: false, // Can connect to kitchen instead
-        minAreaSqft: 30,
-        maxAreaSqft: 80,
+        minAreaSqm: 3,
+        maxAreaSqm: 8,
     },
     foyer: {
         roomType: 'foyer',
@@ -91,8 +95,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway', 'living_room'],
         shouldNotBeTouchedBy: [],
         requiresHallwayConnection: false,
-        minAreaSqft: 30,
-        maxAreaSqft: 100,
+        minAreaSqm: 3,
+        maxAreaSqm: 12,
     },
     carport: {
         roomType: 'carport',
@@ -100,8 +104,8 @@ const ROOM_PLACEMENT_RULES: Record<string, RoomPlacementRule> = {
         mustConnectTo: ['hallway', 'foyer'],
         shouldNotBeTouchedBy: ['bedroom'],
         requiresHallwayConnection: false,
-        minAreaSqft: 150,
-        maxAreaSqft: 400,
+        minAreaSqm: 12,
+        maxAreaSqm: 30,
     },
 };
 
@@ -161,15 +165,18 @@ function areRoomsAdjacent(room1: Room, room2: Room, tolerance: number = 0.3): bo
 }
 
 /**
- * Check if two rooms overlap (invalid)
+ * Check if two rooms overlap (invalid).
+ * Rooms that merely SHARE AN EDGE (correct adjacency) are NOT overlapping — a
+ * real overlap requires a positive intersection area on both axes. The epsilon
+ * absorbs floating-point noise so grid-aligned neighbours don't false-positive.
  */
-function doRoomsOverlap(room1: Room, room2: Room, buffer: number = 0.1): boolean {
-    return !(
-        room1.x + room1.width + buffer < room2.x ||
-        room2.x + room2.width + buffer < room1.x ||
-        room1.y + room1.height + buffer < room2.y ||
-        room2.y + room2.height + buffer < room1.y
-    );
+function doRoomsOverlap(room1: Room, room2: Room): boolean {
+    const EPS = 0.01;
+    const xOverlap =
+        Math.min(room1.x + room1.width, room2.x + room2.width) - Math.max(room1.x, room2.x);
+    const yOverlap =
+        Math.min(room1.y + room1.height, room2.y + room2.height) - Math.max(room1.y, room2.y);
+    return xOverlap > EPS && yOverlap > EPS;
 }
 
 /**
@@ -183,20 +190,20 @@ function validateRoomConstraints(room: Room, rooms: Room[]): LayoutConstraint[] 
         return violations; // No rules defined for this type
     }
 
-    // Check area constraints
-    if (rules.minAreaSqft !== undefined && room.area < rules.minAreaSqft) {
+    // Check area constraints (square meters)
+    if (rules.minAreaSqm !== undefined && room.area < rules.minAreaSqm) {
         violations.push({
             rule: `${room.type}_area_min`,
             severity: 'warning',
-            description: `${room.type} is too small (${Math.round(room.area)} sqft). Minimum recommended: ${rules.minAreaSqft} sqft.`,
+            description: `${room.type} is too small (${Math.round(room.area)} m²). Minimum recommended: ${rules.minAreaSqm} m².`,
         });
     }
 
-    if (rules.maxAreaSqft !== undefined && room.area > rules.maxAreaSqft) {
+    if (rules.maxAreaSqm !== undefined && room.area > rules.maxAreaSqm) {
         violations.push({
             rule: `${room.type}_area_max`,
             severity: 'warning',
-            description: `${room.type} is too large (${Math.round(room.area)} sqft). Maximum recommended: ${rules.maxAreaSqft} sqft.`,
+            description: `${room.type} is too large (${Math.round(room.area)} m²). Maximum recommended: ${rules.maxAreaSqm} m².`,
         });
     }
 

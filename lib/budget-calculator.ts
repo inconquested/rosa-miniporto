@@ -9,7 +9,10 @@ const COSTS = {
     hallway: { materials: 25, labor: 35, furniture: 500 }
 };
 
-export function calculateBudget(rooms: Room[]): BudgetData {
+export function calculateBudget(rooms: Room[] = []): BudgetData {
+    if (!rooms || !Array.isArray(rooms)) {
+        return { breakdown: [], total: 0, contingency: 0 };
+    }
     const breakdown = rooms.map(room => {
         const rates = COSTS[room.type as keyof typeof COSTS] || COSTS.bedroom;
         const materials = room.area * rates.materials;

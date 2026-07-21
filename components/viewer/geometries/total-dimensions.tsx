@@ -40,7 +40,7 @@ export function TotalDimensions({ rooms, animationProgress = 1 }: { rooms: Room[
                 font="https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Me5WZLCzYlKw.ttf"
                 fillOpacity={Math.max(0, animationProgress - 0.6)}
             >
-                TOTAL: {totalArea.toFixed(0)} sqft
+                TOTAL: {totalArea.toFixed(0)} m²
             </Text>
         </group>
     );

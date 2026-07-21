@@ -8,6 +8,27 @@ import { FloorPlanData, BudgetData } from '@/types';
 import { InputGroup, InputGroupAddon, InputGroupTextarea, InputGroupButton } from '@/components/ui/input-group';
 import { MicrophoneIcon, ArrowUpIcon, SquareIcon } from '@phosphor-icons/react';
 
+// Minimal typings for the Web Speech API (not part of the standard DOM lib)
+type SpeechRecognitionAlternative = { transcript: string };
+type SpeechRecognitionResultLike = ArrayLike<SpeechRecognitionAlternative>;
+interface SpeechRecognitionEventLike {
+  results: ArrayLike<SpeechRecognitionResultLike>;
+}
+interface SpeechRecognitionLike {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  onstart: (() => void) | null;
+  onresult: ((e: SpeechRecognitionEventLike) => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+}
+type SpeechWindow = typeof window & {
+  SpeechRecognition?: new () => SpeechRecognitionLike;
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike;
+};
+
 export default function Home() {
   const [floorPlan, setFloorPlan] = useState<FloorPlanData | null>(null);
   const [input, setInput] = useState('');
@@ -40,7 +61,8 @@ export default function Home() {
 
   const handleSpeechInput = () => {
     const lang = navigator.language;
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const w = window as SpeechWindow;
+    const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
       setError("Speech recognition is not supported in this browser.");
@@ -57,15 +79,15 @@ export default function Home() {
       setError('');
     };
 
-    recognition.onresult = (e: any) => {
+    recognition.onresult = (e) => {
       const transcript = Array.from(e.results)
-        .map((result: any) => result[0])
-        .map((result: any) => result.transcript)
+        .map((result) => result[0])
+        .map((result) => result.transcript)
         .join('');
       setInput(transcript);
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event) => {
       setError(`Speech error: ${event.error}`);
       setIsListening(false);
     };
@@ -114,7 +136,7 @@ export default function Home() {
       if (data.rooms) {
         setBudget(calculateBudget(data.rooms));
       }
-    } catch (e: any) {
+    } catch (e) {
       setError('An unexpected error occurred. Please try again.');
       console.error(e);
     } finally {
@@ -201,7 +223,7 @@ export default function Home() {
       {!!floorPlan?.notes && (
         <div className="absolute bottom-8 right-8 z-10 max-w-xs text-right hidden lg:block">
           <p className="text-xs text-neutral-950 italic leading-relaxed bg-neutral-600/5 backdrop-blur-sm p-3 rounded-lg border border-white/40">
-            "{floorPlan.notes}"
+            &quot;{floorPlan.notes}&quot;
           </p>
         </div>
       )}
