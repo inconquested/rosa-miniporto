@@ -29,7 +29,7 @@ export function RoomBox({
 
     const widthLabel = `${(room.width || 0).toFixed(1)}m`;
     const heightLabel = `${(room.height || 0).toFixed(1)}m`;
-    const areaLabel = `${Math.round(room.area || 0)} sqft`;
+    const areaLabel = `${Math.round(room.area || 0)} m²`;
 
     // Animate floor scale from center
     const floorScale = isAnimating ? animationProgress : 1;

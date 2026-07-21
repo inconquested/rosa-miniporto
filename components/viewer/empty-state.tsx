@@ -1,10 +1,10 @@
 'use client';
 
-import { GithubLogoIcon, InstagramLogoIcon, MailboxIcon, SparkleIcon } from '@phosphor-icons/react';
+import { GithubLogoIcon, InstagramLogoIcon, SparkleIcon } from '@phosphor-icons/react';
 import LineWaves from '../LineWaves';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export function EmptyState() {
     return (
@@ -47,7 +47,7 @@ export function EmptyState() {
                 <div className="group relative p-px rounded-xl bg-linear-to-r from-rose-500/50 to-rose-600/50 hover:from-rose-500 hover:to-rose-600 transition-all ease-in duration-300 mb-12">
                     <div className="bg-white/5 backdrop-blur-sm px-6 py-3 rounded-[11px]">
                         <span className="text-white font-mono text-sm italic">
-                            "Modern 3 bedroom apartment, 1200 sqft"
+                            &quot;Modern 3 bedroom apartment, 120 m²&quot;
                         </span>
                     </div>
                 </div>

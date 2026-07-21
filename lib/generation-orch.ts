@@ -1,31 +1,27 @@
-// lib/layoutGenerationChain.ts
+// lib/generation-orch.ts
 //
-// Simplified orchestration chain using Mistral AI.
-// Logic: Mistral Large (Primary) -> Mistral Small (Correction Pass) -> Final Result.
+// Orchestration chain using Claude Opus 4.8 via Microsoft (Azure AI) Foundry.
+// Logic: Opus 4.8 (primary generation) -> Opus 4.8 (correction pass) -> Final Result.
 
 import { z } from 'zod';
-import { Mistral } from '@mistralai/mistralai';
+import { jsonrepair } from 'jsonrepair';
+import AnthropicFoundry from '@anthropic-ai/foundry-sdk';
 
 import { validateLayout } from './validator-engine';
 import { BuildPrompt } from './prompt';
 import { FloorPlanZodSchema, RoomSchema } from '@/schema/floor-plan';
-import {
-    llmConfig,
-    correctionConfig,
-    MISTRAL_PRIMARY_MODEL,
-    MISTRAL_CORRECTION_MODEL,
-} from '../config/llm.config';
+import { llmConfig, correctionConfig, FOUNDRY_MODEL } from '../config/llm.config';
 
-import type { Room, FloorPlanData } from '@/schema/floor-plan';
+import type { FloorPlanData } from '@/schema/floor-plan';
 
 // ---------------------------------------------------------------------------
 // Result types
 // ---------------------------------------------------------------------------
 
-export type MistralProvider = 'mistral-large-latest' | 'mistral-small-latest' | 'correction';
+export type ClaudeProvider = 'claude-opus-4-8' | 'correction';
 
 export interface GenerationAttempt {
-    provider: MistralProvider;
+    provider: ClaudeProvider;
     attempt: number;
     success: boolean;
     error?: string;
@@ -41,24 +37,28 @@ export interface LayoutGenerationResult {
 }
 
 // ---------------------------------------------------------------------------
-// Mistral client
+// Foundry client
 // ---------------------------------------------------------------------------
 
-let _client: Mistral | null = null;
+let _client: AnthropicFoundry | null = null;
 
-function getMistralClient(): Mistral {
-    let apiKey = process.env.MISTRAL_API_KEY;
+function getFoundryClient(): AnthropicFoundry {
+    let apiKey = process.env.ANTHROPIC_FOUNDRY_API_KEY;
 
     if (!apiKey) {
-        throw new Error('MISTRAL_API_KEY environment variable is not set');
+        throw new Error('ANTHROPIC_FOUNDRY_API_KEY environment variable is not set');
     }
 
-    if (apiKey.startsWith('MISTRAL_API_KEY=')) {
-        apiKey = apiKey.replace('MISTRAL_API_KEY=', '').trim();
+    // Defensive: strip an accidentally-pasted `KEY=` prefix (mirrors prod env quirks)
+    if (apiKey.startsWith('ANTHROPIC_FOUNDRY_API_KEY=')) {
+        apiKey = apiKey.replace('ANTHROPIC_FOUNDRY_API_KEY=', '').trim();
     }
+    apiKey = apiKey.trim();
 
     if (!_client) {
-        _client = new Mistral({ apiKey });
+        // `resource` / `baseURL` are read from ANTHROPIC_FOUNDRY_RESOURCE
+        // (or ANTHROPIC_FOUNDRY_BASE_URL) automatically.
+        _client = new AnthropicFoundry({ apiKey });
     }
     return _client;
 }
@@ -67,12 +67,43 @@ function getMistralClient(): Mistral {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function extractText(response: Awaited<ReturnType<Mistral['chat']['complete']>>): string {
-    const choice = response.choices?.[0];
-    if (!choice) throw new Error('Mistral returned no choices');
-    const content = choice?.message?.content;
-    if (typeof content === 'string') return content;
-    throw new Error('Unexpected content shape from Mistral');
+type AnthropicMessage = Awaited<ReturnType<AnthropicFoundry['messages']['create']>>;
+
+/** Concatenate all text blocks from a Claude message. */
+function extractText(response: AnthropicMessage): string {
+    const blocks = (response as { content?: Array<{ type: string; text?: string }> }).content ?? [];
+    const text = blocks
+        .filter(b => b.type === 'text' && typeof b.text === 'string')
+        .map(b => b.text as string)
+        .join('\n')
+        .trim();
+
+    if (!text) throw new Error('Foundry returned no text content');
+    return text;
+}
+
+/** Robustly pull a JSON value out of the model's text output. */
+function extractJson(text: string): unknown {
+    let t = text.trim();
+
+    // Strip a markdown code fence if the model wrapped the JSON in one
+    const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fence) t = fence[1].trim();
+
+    // Narrow to the outermost object/array in case of stray preamble
+    const firstObj = t.indexOf('{');
+    const lastObj = t.lastIndexOf('}');
+    const firstArr = t.indexOf('[');
+    const lastArr = t.lastIndexOf(']');
+
+    if (firstObj !== -1 && lastObj > firstObj) {
+        t = t.slice(firstObj, lastObj + 1);
+    } else if (firstArr !== -1 && lastArr > firstArr) {
+        t = t.slice(firstArr, lastArr + 1);
+    }
+
+    // jsonrepair fixes trailing commas / unquoted keys / minor breakage
+    return JSON.parse(jsonrepair(t));
 }
 
 function processFloorPlanData(raw: unknown): FloorPlanData {
@@ -81,7 +112,7 @@ function processFloorPlanData(raw: unknown): FloorPlanData {
     // Handle potential wrapper keys like "data" or "floorPlan"
     if (raw && typeof raw === 'object' && !Array.isArray(raw) && !('rooms' in raw)) {
         for (const key of Object.keys(raw)) {
-            const val = (raw as any)[key];
+            const val = (raw as Record<string, unknown>)[key];
             if (val && typeof val === 'object' && 'rooms' in val) {
                 candidate = val;
                 break;
@@ -91,17 +122,16 @@ function processFloorPlanData(raw: unknown): FloorPlanData {
 
     const result = FloorPlanZodSchema.safeParse(candidate);
     if (!result.success) {
-        throw new Error(`Invalid structure: ${result.error.issues.map((e: any) => e.message).join(', ')}`);
+        throw new Error(`Invalid structure: ${result.error.issues.map((e) => e.message).join(', ')}`);
     }
     return result.data;
 }
 
 function getErrorMessage(err: unknown): string {
     if (err instanceof Error) {
-        const apiError = err as any;
-        if (apiError.response) {
-            const body = apiError.response.data || apiError.response;
-            return `API Error ${apiError.status || ''}: ${JSON.stringify(body)}`;
+        const status = (err as { status?: number }).status;
+        if (status) {
+            return `API Error ${status}: ${err.message}`;
         }
         return err.message;
     }
@@ -116,33 +146,29 @@ export async function generateFloorPlanWithFallback(
     description: string,
 ): Promise<LayoutGenerationResult> {
     const attempts: GenerationAttempt[] = [];
-    const client = getMistralClient();
+    const client = getFoundryClient();
 
-    // 1. Primary Generation (Mistral Large)
+    // 1. Primary Generation (Claude Opus 4.8)
     try {
-        const response = await client.chat.complete({
-            model: MISTRAL_PRIMARY_MODEL,
-            messages: [
-                { role: 'system', content: llmConfig.systemInstruction },
-                { role: 'user', content: BuildPrompt(description) },
-            ],
-            responseFormat: llmConfig.responseFormat,
-            temperature: llmConfig.temperature,
-            maxTokens: llmConfig.maxTokens,
+        const response = await client.messages.create({
+            model: FOUNDRY_MODEL,
+            max_tokens: llmConfig.maxTokens,
+            system: llmConfig.systemInstruction,
+            messages: [{ role: 'user', content: BuildPrompt(description) }],
         });
 
-        const data = processFloorPlanData(JSON.parse(extractText(response)));
+        const data = processFloorPlanData(extractJson(extractText(response)));
         const validation = validateLayout(data.rooms);
 
         if (validation.isValid) {
-            attempts.push({ provider: 'mistral-large-latest', attempt: 1, success: true, data });
-            return { success: true, data, attempts, usedProvider: 'mistral-large-latest', corrected: false };
+            attempts.push({ provider: 'claude-opus-4-8', attempt: 1, success: true, data });
+            return { success: true, data, attempts, usedProvider: 'claude-opus-4-8', corrected: false };
         }
 
-        // 2. Correction Pass (Mistral Small)
+        // 2. Correction Pass (Claude Opus 4.8)
         const errorDescs = validation.violations.map(v => v.description);
         attempts.push({
-            provider: 'mistral-large-latest',
+            provider: 'claude-opus-4-8',
             attempt: 1,
             success: false,
             error: `Validation failed: ${errorDescs.join('; ')}`,
@@ -150,20 +176,17 @@ export async function generateFloorPlanWithFallback(
         });
 
         try {
-            const correctionPrompt = `Correct this floor plan JSON. Issues: ${errorDescs.join(', ')}. Current JSON: ${JSON.stringify(data.rooms, null, 2)}. Rules: Ensure no overlaps, all rooms connect to Hallway, and respect size bounds. Return ONLY the rooms array.`;
+            const correctionPrompt = `Correct this floor plan JSON. Issues: ${errorDescs.join(', ')}. Current JSON: ${JSON.stringify(data.rooms, null, 2)}. Rules: Ensure no overlaps, all rooms connect to Hallway, and respect size bounds. Return ONLY the rooms array (a JSON array of room objects), no markdown, no explanation.`;
 
-            const corrResponse = await client.chat.complete({
-                model: MISTRAL_CORRECTION_MODEL,
-                messages: [
-                    { role: 'system', content: 'You fix floor plan JSON. Return only a JSON array of room objects.' },
-                    { role: 'user', content: correctionPrompt },
-                ],
-                responseFormat: correctionConfig.responseFormat,
-                temperature: correctionConfig.temperature,
+            const corrResponse = await client.messages.create({
+                model: FOUNDRY_MODEL,
+                max_tokens: correctionConfig.maxTokens,
+                system: 'You fix floor plan JSON. Return only a JSON array of room objects.',
+                messages: [{ role: 'user', content: correctionPrompt }],
             });
 
-            const rawCorr = JSON.parse(extractText(corrResponse));
-            const correctedRooms = Array.isArray(rawCorr) ? rawCorr : (rawCorr as any).rooms ?? rawCorr;
+            const rawCorr = extractJson(extractText(corrResponse));
+            const correctedRooms = Array.isArray(rawCorr) ? rawCorr : (rawCorr as { rooms?: unknown }).rooms ?? rawCorr;
             const validatedRooms = z.array(RoomSchema).parse(correctedRooms);
 
             const correctionData: FloorPlanData = { ...data, rooms: validatedRooms };
@@ -181,7 +204,7 @@ export async function generateFloorPlanWithFallback(
                 success: finalValidation.isValid,
                 data: correctionData,
                 attempts,
-                usedProvider: 'mistral-large + correction',
+                usedProvider: 'claude-opus-4-8 + correction',
                 corrected: true,
             };
 
@@ -190,7 +213,7 @@ export async function generateFloorPlanWithFallback(
         }
 
     } catch (genErr) {
-        attempts.push({ provider: 'mistral-large-latest', attempt: 1, success: false, error: getErrorMessage(genErr) });
+        attempts.push({ provider: 'claude-opus-4-8', attempt: 1, success: false, error: getErrorMessage(genErr) });
     }
 
     // Return the best attempt even if not fully valid
@@ -205,9 +228,9 @@ export async function generateFloorPlanWithFallback(
 }
 
 export function getRateLimitStatus() {
-    return { large: 999, small: 999 };
+    return { primary: 999, correction: 999 };
 }
 
-export function resetMistralClient() {
+export function resetFoundryClient() {
     _client = null;
 }

@@ -1,38 +1,26 @@
-import { floorPlanGenAISchema } from '@/schema/floor-plan';
 import { BuildSysInstruction } from '@/lib/prompt';
 
 /** Model identifiers -------------------------------------------------------
- *  Primary:   mistral-large-latest  – best reasoning, used for generation
- *  Fallback:  mistral-small-latest  – faster / cheaper, used for correction
+ *  Main model:  Claude Opus 4.8, served through Microsoft (Azure AI) Foundry.
+ *  The deployment name is configured in the Foundry resource; override via the
+ *  ANTHROPIC_FOUNDRY_DEPLOYMENT env var.
  */
-export const MISTRAL_PRIMARY_MODEL = 'mistral-large-2512';
-export const MISTRAL_CORRECTION_MODEL = 'mistral-small-2603';
+export const FOUNDRY_MODEL =
+    process.env.ANTHROPIC_FOUNDRY_DEPLOYMENT?.trim() || 'claude-opus-4-8';
 
-/** Shared generation parameters ------------------------------------------- */
+/** Shared generation parameters -------------------------------------------
+ *  NOTE: Opus 4.8 rejects `temperature` / `top_p` / `top_k` and `budget_tokens`
+ *  with a 400 — steer behaviour through the system prompt instead.
+ */
 export const llmConfig = {
-    /** System instruction injected as the first "system" message */
+    /** System instruction passed as the top-level `system` param */
     systemInstruction: BuildSysInstruction(),
 
-    /** Structured-output: constrain the model to our JSON Schema */
-    responseFormat: {
-        type: 'json_object' as const,
-    } satisfies { type: 'json_object' },
-
-    temperature: 0.9,
+    /** Max output tokens for the primary generation pass */
     maxTokens: 4096,
-    presencePenalty: 0.14,
-    frequencyPenalty: 0.2,
-    topP: 0.91,
-    randomSeed: undefined as number | undefined, // set for reproducibility in tests
 } as const;
 
 /** Correction-pass parameters --------------------------------------------- */
 export const correctionConfig = {
-    temperature: 0.2,   // lower = more deterministic fixes
     maxTokens: 2048,
-    topP: 0.9,
-    responseFormat: { type: 'json_object' as const },
 } as const;
-
-// Re-export schema so callers can import from one place
-export { floorPlanGenAISchema };

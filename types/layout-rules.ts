@@ -17,8 +17,8 @@ export interface RoomPlacementRule {
     shouldNotBeTouchedBy?: string[]; // room types to avoid proximity
     minDistanceBetween?: number; // distance from other instances of same type
     requiresHallwayConnection?: boolean;
-    minAreaSqft?: number;
-    maxAreaSqft?: number;
+    minAreaSqm?: number; // square meters (all layout dimensions are in meters)
+    maxAreaSqm?: number;
 }
 
 export interface LayoutValidationResult {

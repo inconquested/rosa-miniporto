@@ -16,7 +16,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
     const [leftDown, setLeftDown] = useState(false);
     const [rightDown, setRightDown] = useState(false);
     const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(true);
-    const controlsRef = useRef<any>(null);
+    const controlsRef = useRef<React.ComponentRef<typeof OrbitControls>>(null);
 
     const bounds = useMemo(() => {
         const maxX = Math.max(...rooms?.map(r => r.x + r.width) || [10], 10);
@@ -33,33 +33,28 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
     const [isAnimating, setIsAnimating] = useState(false);
 
     useEffect(() => {
-        if (!rooms?.length) {
-            setAnimationProgress(0);
-            setIsAnimating(false);
-            return;
-        }
+        if (!rooms?.length) return;
 
-        // Trigger animation whenever rooms change
-        setAnimationProgress(0);
-        setIsAnimating(true);
-
+        // Trigger a staggered build animation whenever the rooms change.
+        // State is updated inside the rAF callback (not synchronously in the
+        // effect body) to avoid cascading renders.
         const startTime = Date.now();
         const totalDurationMs = ANIMATION_DURATION * rooms.length * 1000;
+        let animationFrame = 0;
 
         const animate = () => {
             const elapsedMs = Date.now() - startTime;
             const progress = Math.min(elapsedMs / totalDurationMs, 1);
 
             setAnimationProgress(progress);
+            setIsAnimating(progress < 1);
 
             if (progress < 1) {
-                requestAnimationFrame(animate);
-            } else {
-                setIsAnimating(false);
+                animationFrame = requestAnimationFrame(animate);
             }
         };
 
-        const animationFrame = requestAnimationFrame(animate);
+        animationFrame = requestAnimationFrame(animate);
         return () => cancelAnimationFrame(animationFrame);
     }, [rooms]); // Re-run whenever rooms data changes
 
@@ -71,7 +66,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
         );
     }
 
-    const { maxX, maxY, minX, minY, midX, midY, dist: cameraDistance } = bounds;
+    const { midX, midY, dist: cameraDistance } = bounds;
 
     const handlePointerDown = (e: React.PointerEvent) => {
         if (e.button === 0) setLeftDown(true);
@@ -235,7 +230,7 @@ export function FloorPlanViewer({ rooms, onFloorplanClear, budget }: { rooms: Ro
                                 <span>Total Area:</span>
                                 <span>
                                     <span className="text-zinc-950 font-semibold italic">{(rooms.reduce((s, r) => s + r.area, 0)).toFixed(0)}</span>
-                                    <span className="text-zinc-950 font-semibold"> sqft</span>
+                                    <span className="text-zinc-950 font-semibold"> m²</span>
                                 </span>
                             </div>
                             <div className="flex justify-between gap-4">
